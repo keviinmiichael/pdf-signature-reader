@@ -5,7 +5,7 @@
 CERTIFICADOS_TEST/
 
 # Archivos de test y desarrollo
-test-completo.js
+test-normal-behavior.js
 RESUMEN_FINAL.md
 
 # Resultados de verificación

@@ -11,6 +11,7 @@ const {
   isCertsExpired,
 } = require('./helpers');
 const { extractCertificatesDetails } = require('./certificateDetails');
+const { setCustomRootCertificates, clearCustomRootCertificates } = require('./helpers/verification');
 
 const verify = (signature, signedData, signatureMeta) => {
   const message = getMessageFromSignature(signature);
@@ -66,24 +67,38 @@ const verify = (signature, signedData, signatureMeta) => {
   });
 };
 
-module.exports = (pdf) => {
-  const pdfBuffer = preparePDF(pdf);
-  checkForSubFilter(pdfBuffer);
+module.exports = (pdf, options = {}) => {
+  const { customRootCAPath } = options;
+  
+  if (customRootCAPath) {
+    setCustomRootCertificates(customRootCAPath);
+  }
+  
   try {
+    const pdfBuffer = preparePDF(pdf);
+    checkForSubFilter(pdfBuffer);
+    
     const { signatureStr, signedData, signatureMeta } = extractSignature(pdfBuffer);
 
     const signatures = signedData.map((signed, index) => {
       return (verify(signatureStr[index], signed, signatureMeta[index]));
     })
 
-    return {
+    const result = {
       verified: signatures.every(o => o.verified === true),
       authenticity: signatures.every(o => o.authenticity === true),
       integrity: signatures.every(o => o.integrity === true),
       expired: signatures.some(o => o.expired === true),
       signatures
     };
+
+    return result;
   } catch (error) {
     return ({ verified: false, message: error.message, error });
+  } finally {
+    // Limpiar certificados personalizados después de la verificación
+    if (customRootCAPath) {
+      clearCustomRootCertificates();
+    }
   }
 };

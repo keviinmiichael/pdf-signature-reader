@@ -7,7 +7,7 @@ node_modules
 
 # Ignorar archivos de desarrollo y test
 CERTIFICADOS_TEST/
-test-completo.js
+test-normal-behavior.js
 RESUMEN_FINAL.md
 
 # Ignorar resultados de verificación

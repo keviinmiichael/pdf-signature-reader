@@ -1,12 +1,6 @@
 ## Verifying PDF signature
 
-The signed `javascript
-import verif`javascript
-const { getCertificatesInfoFromPDF } = require('pdf-signature-reader-sl'); // require
-
-import { getCertificatesInfoFromPDF } from 'pdf-signature-reader-sl'; // ES6 from 'pdf-signature-reader-sl';
-
-const readFile = (e) => {file has the public certificate embedded in it, so all we need to verify a PDF file is the file itself. This package is a clone from [ninja-labs-tech/verify-pdf](https://github.com/ninja-labs-tech/verify-pdf) with update on dependencies, cause we got issue when installing the package with node >= 16 & npm >= 8
+The signed file has the public certificate embedded in it, so all we need to verify a PDF file is the file itself. This package is a clone from [ninja-labs-tech/verify-pdf](https://github.com/ninja-labs-tech/verify-pdf) with update on dependencies, cause we got issue when installing the package with node >= 16 & npm >= 8
 
 ## Installation
 
@@ -84,6 +78,61 @@ const certs = getCertificatesInfoFromPDF(signedPdfBuffer);
   - pemCertificate: Certificate in pem format.
   - clientCertificate: true for the client certificate.
 
-## Credits
+## Custom Root CA
 
-- This incredible [NPM Package](https://github.com/ninja-labs-tech/verify-pdf) by ninja-labs-tech.
+Since the current version, you can specify custom root certificates for verification using the `customRootCAPath` parameter.
+
+### Basic Usage
+
+```javascript
+const verifyPDF = require("pdf-signature-reader-sl");
+const signedPdfBuffer = fs.readFileSync("yourPdf");
+
+// Using custom certificates
+const customRootCAPath = "./path/to/your/certificates.pem";
+const { verified, authenticity, integrity, expired, signatures } = verifyPDF(
+  signedPdfBuffer,
+  { customRootCAPath }
+);
+```
+
+### Behavior
+
+- **With `customRootCAPath`**: Uses only the certificates from the specified file
+- **Without `customRootCAPath`**: Default behavior (system + local certificates)
+
+### Complete Example
+
+```javascript
+const fs = require("fs");
+const verifyPDF = require("pdf-signature-reader-sl");
+
+// Load PDF
+const pdfBuffer = fs.readFileSync("signed-document.pdf");
+
+// Option 1: Custom certificates
+const customResult = verifyPDF(pdfBuffer, {
+  customRootCAPath: "./certs/custom-ca.pem",
+});
+
+// Option 2: Default certificates (backward compatible)
+const defaultResult = verifyPDF(pdfBuffer);
+
+console.log("Custom CA:", customResult.verified);
+console.log("Default CA:", defaultResult.verified);
+```
+
+### Certificate File Format
+
+The file must contain certificates in PEM format:
+
+```
+-----BEGIN CERTIFICATE-----
+MIIFgzCCA2ugAwIBAgIPXZONMGc2yAYdGsdUhGkHMA0GCSqGSIb3DQEBCwUAMDsx
+...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIGQTCCBCmgAwIBAgIQXem6yKx4WyydZcEXlzuxYjANBgkqhkiG9w0BAQsFADA7
+...
+-----END CERTIFICATE-----
+```

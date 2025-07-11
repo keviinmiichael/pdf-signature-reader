@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const rootCAs = require('./rootCAs');
 
+// Variable global para almacenar certificados personalizados
+let customRootCertificates = null;
+
 const getLocalCertificates = () => {
   try {
     const certsPath = path.join(__dirname, '..', 'certs');
@@ -23,11 +26,47 @@ const getLocalCertificates = () => {
   }
 };
 
+const loadCustomRootCertificates = (customRootCAPath) => {
+  try {
+    if (!customRootCAPath || !fs.existsSync(customRootCAPath)) {
+      throw new Error(`Custom root CA file not found: ${customRootCAPath}`);
+    }
+    
+    const customCerts = fs.readFileSync(customRootCAPath, 'utf8');
+
+    const certRegex = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+    const matches = customCerts.match(certRegex);
+    
+    if (!matches || matches.length === 0) {
+      throw new Error(`No valid certificates found in: ${customRootCAPath}`);
+    }
+    
+    return matches;
+  } catch (error) {
+    console.warn('Warning: Could not load custom root certificates:', error.message);
+    return [];
+  }
+};
+
+const setCustomRootCertificates = (customRootCAPath) => {
+  if (customRootCAPath) {
+    customRootCertificates = loadCustomRootCertificates(customRootCAPath);
+  } else {
+    customRootCertificates = null;
+  }
+};
+
+const clearCustomRootCertificates = () => {
+  customRootCertificates = null;
+};
+
 const getRootCAs = () => {
+  if (customRootCertificates && customRootCertificates.length > 0) {
+    return customRootCertificates;
+  }
+  
   const systemCerts = tls.rootCertificates || rootCAs;
   const localCerts = getLocalCertificates();
-  
-  // Combine system certificates with local certificates
   return [...systemCerts, ...localCerts];
 };
 
@@ -57,4 +96,7 @@ module.exports = {
   verifyCaBundle,
   verifyRootCert,
   isCertsExpired,
+  setCustomRootCertificates,
+  clearCustomRootCertificates,
+  getRootCAs, // Exportar para testing
 };

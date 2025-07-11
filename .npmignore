@@ -1,0 +1,23 @@
+# NPM ignore file
+# Excluir archivos de desarrollo y test del paquete NPM
+
+# Directorio de certificados de prueba
+CERTIFICADOS_TEST/
+
+# Archivos de test y desarrollo
+test-completo.js
+RESUMEN_FINAL.md
+
+# Resultados de verificación
+respuestas_verificacion/
+
+# Archivos de configuración de desarrollo
+.gitignore
+.git/
+
+# Archivos Zone.Identifier de Windows
+*.Zone.Identifier*
+
+# Archivos temporales
+*.tmp
+*.log

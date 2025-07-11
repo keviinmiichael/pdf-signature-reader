@@ -26,6 +26,8 @@ const checkForSubFilter = (pdfBuffer) => {
   }
   const supportedTypes = ['adbe.pkcs7.detached', 'etsi.cades.detached'];
   if (!supportedTypes.includes(subFilter.trim().toLowerCase())) throw new VerifyPDFError(`subFilter ${subFilter} not supported`, VerifyPDFError.UNSUPPORTED_SUBFILTER);
+  
+  return subFilter;
 };
 const getMessageFromSignature = (signature) => {
   const p7Asn1 = forge.asn1.fromDer(signature, {parseAllBytes: false});

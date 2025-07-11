@@ -1,3 +1,14 @@
 node_modules
 
 .npmrc
+
+# Ignorar archivos Zone.Identifier generados por Windows
+*.Zone.Identifier*
+
+# Ignorar archivos de desarrollo y test
+CERTIFICADOS_TEST/
+test-completo.js
+RESUMEN_FINAL.md
+
+# Ignorar resultados de verificación
+respuestas_verificacion/

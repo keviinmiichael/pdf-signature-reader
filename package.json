@@ -1,10 +1,12 @@
 {
-  "name": "pdf-signature-reader",
-  "version": "1.4.3",
-  "description": "Verify the digital signature of the pdf",
+  "name": "pdf-signature-reader-sl",
+  "version": "1.4.4",
+  "description": "Verify digital signatures in PDF documents with support for Spanish certificates (FNMT, DNIe, corporate)",
   "main": "index.js",
+  "types": "types.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test-completo.js",
+    "test:verbose": "node test-completo.js"
   },
   "keywords": [
     "pdf",
@@ -12,7 +14,13 @@
     "digital signature",
     "node",
     "nodejs",
-    "verify"
+    "verify",
+    "fnmt",
+    "dnie",
+    "spanish certificates",
+    "etsi",
+    "cades",
+    "pkcs7"
   ],
   "author": "",
   "license": "MIT",

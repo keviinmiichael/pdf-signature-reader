@@ -1,138 +1,234 @@
-## Verifying PDF signature
+# PDF Signature Reader
 
-The signed file has the public certificate embedded in it, so all we need to verify a PDF file is the file itself. This package is a clone from [ninja-labs-tech/verify-pdf](https://github.com/ninja-labs-tech/verify-pdf) with update on dependencies, cause we got issue when installing the package with node >= 16 & npm >= 8
+A comprehensive library for verifying digital signatures in PDF documents with enhanced support for Spanish certificates (FNMT, DNIe, corporate certificates).
 
 ## Installation
 
-```
-npm i pdf-signature-reader-sl
-```
-
-## Importing
-
-```javascript
-// CommonJS require
-const verifyPDF = require("pdf-signature-reader-sl");
-
-// ES6 imports
-import verifyPDF from "pdf-signature-reader-sl";
+```bash
+npm install pdf-signature-reader-sl
 ```
 
-## Verifying
+## API Reference
 
-Verify the digital signature of the pdf and extract the certificates details
+### Main Export: `verifyPDF`
 
-### Node.js
+**Type**: `Function`  
+**Description**: Main function to verify PDF digital signatures  
+**Parameters**:
 
-```javascript
-const verifyPDF = require("pdf-signature-reader-sl");
-const signedPdfBuffer = fs.readFileSync("yourPdf");
+- `pdf` (`Buffer | string`): PDF file as buffer or string
+- `options` (`Object`, optional): Configuration options
+  - `customRootCAPath` (`string`, optional): Path to custom root CA certificates file
 
-const { verified, authenticity, integrity, expired, signatures } =
-  verifyPDF(signedPdfBuffer);
+**Returns**: `VerifyPDFResponse | VerifyPDFError`
+
+#### Success Response (`VerifyPDFResponse`)
+
+```typescript
+{
+  verified: boolean,        // Overall verification status
+  authenticity: boolean,    // Certificate chain validity
+  integrity: boolean,       // Document integrity check
+  expired: boolean,         // Any certificate expired
+  signatures: SignatureInfo[]  // Array of signature details
+}
 ```
 
-### Browser
+#### Error Response (`VerifyPDFError`)
 
-```javascript
-import verifyPDF from "pdf-signature-reader";
-
-const readFile = (e) => {
-  const file = e.target.files[0];
-  let reader = new FileReader();
-  reader.onload = function (e) {
-    const { verified } = verifyPDF(reader.result);
-  };
-  reader.readAsArrayBuffer(file);
-};
+```typescript
+{
+  verified: false,
+  message: string,          // Error description
+  error: Error             // Original error object
+}
 ```
 
-- signedPdfBuffer: signed PDF as buffer.
-- verified: The overall status of verification process.
-- authenticity: Indicates if the validity of the certificate chain and the root CA (overall in case of multiple signatures).
-- integrity: Indicates if the pdf has been tampered with or not (overall in case of multiple signatures).
-- expired: Indicates if any of the certificates has expired.
-- signatures: Array that contains the certificate details and signatureMeta (Reason, ContactInfo, Location and Name) for each signature.
+### Exported Functions
 
-## Certificates
+#### `getCertificatesInfoFromPDF`
 
-You can get the details of the certificate chain by using the following api.
+**Type**: `Function`  
+**Description**: Extracts certificate details from PDF without verification  
+**Parameters**:
 
-```javascript
-const { getCertificatesInfoFromPDF } = require("pdf-signature-reader"); // require
+- `pdf` (`Buffer | string`): PDF file as buffer or string
 
-import { getCertificatesInfoFromPDF } from "pdf-signature-reader"; // ES6
+**Returns**: `Array<Array<CertificateDetails>>`
+
+Each certificate contains:
+
+```typescript
+{
+  clientCertificate?: boolean,     // True for signing certificate
+  issuedBy: CertificateEntity,     // Certificate issuer info
+  issuedTo: CertificateEntity,     // Certificate subject info
+  validityPeriod: ValidityPeriod,  // Validity dates
+  pemCertificate: string          // Certificate in PEM format
+}
 ```
 
-```javascript
-const certs = getCertificatesInfoFromPDF(signedPdfBuffer);
+### Utility Functions
+
+#### `isVerifyPDFSuccess`
+
+**Type**: `Function`  
+**Description**: Type guard to check if result is successful  
+**Parameters**:
+
+- `result` (`VerifyPDFResult`): Result from verifyPDF
+
+**Returns**: `boolean`
+
+#### `isVerifyPDFError`
+
+**Type**: `Function`  
+**Description**: Type guard to check if result is an error  
+**Parameters**:
+
+- `result` (`VerifyPDFResult`): Result from verifyPDF
+
+**Returns**: `boolean`
+
+#### `getVerificationSummary`
+
+**Type**: `Function`  
+**Description**: Extracts summary information from verification result  
+**Parameters**:
+
+- `result` (`VerifyPDFResult`): Result from verifyPDF
+
+**Returns**: `Object`
+
+```typescript
+{
+  status: 'success' | 'error' | 'unknown',
+  verified: boolean,
+  signaturesCount: number,
+  signatures?: Array<{
+    index: number,
+    verified: boolean,
+    signer: string,
+    certificatesCount: number
+  }>
+}
 ```
 
-- signedPdfBuffer: signed PDF as buffer.
+#### `extractCertificatesInfo`
 
-- certs:
+**Type**: `Function`  
+**Description**: Extracts structured certificate information  
+**Parameters**:
 
-  - issuedBy: The issuer of the certificate.
-  - issuedTo: The owner of the certificate.
-  - validityPeriod: The start and end date of the certificate.
-  - pemCertificate: Certificate in pem format.
-  - clientCertificate: true for the client certificate.
+- `result` (`VerifyPDFResult`): Result from verifyPDF
 
-## Custom Root CA
+**Returns**: `Array<Object>`
 
-Since the current version, you can specify custom root certificates for verification using the `customRootCAPath` parameter.
-
-### Basic Usage
-
-```javascript
-const verifyPDF = require("pdf-signature-reader-sl");
-const signedPdfBuffer = fs.readFileSync("yourPdf");
-
-// Using custom certificates
-const customRootCAPath = "./path/to/your/certificates.pem";
-const { verified, authenticity, integrity, expired, signatures } = verifyPDF(
-  signedPdfBuffer,
-  { customRootCAPath }
-);
+```typescript
+{
+  signatureIndex: number,
+  certificateIndex: number,
+  isClientCertificate: boolean,
+  commonName?: string,
+  organization?: string,
+  country?: string,
+  serialNumber?: string
+}
 ```
 
-### Behavior
+#### `isValidVerifyPDFResponse`
 
-- **With `customRootCAPath`**: Uses only the certificates from the specified file
-- **Without `customRootCAPath`**: Default behavior (system + local certificates)
+**Type**: `Function`  
+**Description**: Validates if object has correct VerifyPDFResponse structure  
+**Parameters**:
 
-### Complete Example
+- `obj` (`any`): Object to validate
 
-```javascript
-const fs = require("fs");
-const verifyPDF = require("pdf-signature-reader-sl");
+**Returns**: `boolean`
 
-// Load PDF
-const pdfBuffer = fs.readFileSync("signed-document.pdf");
+### Constants
 
-// Option 1: Custom certificates
-const customResult = verifyPDF(pdfBuffer, {
-  customRootCAPath: "./certs/custom-ca.pem",
-});
+#### `Constants.VERIFICATION_STATUS`
 
-// Option 2: Default certificates (backward compatible)
-const defaultResult = verifyPDF(pdfBuffer);
+**Type**: `Object`  
+**Description**: Verification status constants
 
-console.log("Custom CA:", customResult.verified);
-console.log("Default CA:", defaultResult.verified);
+```typescript
+{
+  SUCCESS: 'success',
+  ERROR: 'error',
+  UNKNOWN: 'unknown'
+}
 ```
 
-### Certificate File Format
+#### `Constants.CERTIFICATE_TYPES`
 
-The file must contain certificates in PEM format:
+**Type**: `Object`  
+**Description**: Common Spanish certificate types
 
+```typescript
+{
+  FNMT: 'FNMT-RCM',
+  DNIE: 'DNIE',
+  EMPRESA: 'empresa'
+}
 ```
------BEGIN CERTIFICATE-----
-MIIFgzCCA2ugAwIBAgIPXZONMGc2yAYdGsdUhGkHMA0GCSqGSIb3DQEBCwUAMDsx
-...
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIGQTCCBCmgAwIBAgIQXem6yKx4WyydZcEXlzuxYjANBgkqhkiG9w0BAQsFADA7
-...
------END CERTIFICATE-----
+
+#### `Constants.CERTIFICATE_FIELDS`
+
+**Type**: `Object`  
+**Description**: Standard certificate field names
+
+```typescript
+{
+  COMMON_NAME: 'commonName',
+  ORGANIZATION: 'organizationName',
+  COUNTRY: 'countryName',
+  SERIAL_NUMBER: 'serialNumber',
+  GIVEN_NAME: 'givenName',
+  SURNAME: 'surname'
+}
 ```
+
+### Utility Aliases (`utils`)
+
+**Type**: `Object`  
+**Description**: Alternative names for utility functions
+
+- `utils.isSuccess`: Alias for `isVerifyPDFSuccess`
+- `utils.isError`: Alias for `isVerifyPDFError`
+- `utils.getSummary`: Alias for `getVerificationSummary`
+- `utils.getCertificates`: Alias for `extractCertificatesInfo`
+- `utils.validate`: Alias for `isValidVerifyPDFResponse`
+
+### Error Classes
+
+#### `VerifyPDFError`
+
+**Type**: `Class extends Error`  
+**Description**: Custom error class for PDF verification errors  
+**Properties**:
+
+- `message` (`string`): Error message
+- `type` (`string`): Error type constant
+
+**Error Types**:
+
+- `TYPE_UNKNOWN`: Unknown error
+- `TYPE_INPUT`: Input validation error
+- `TYPE_PARSE`: PDF parsing error
+- `TYPE_BYTE_RANGE`: Byte range validation error
+- `VERIFY_SIGNATURE`: Signature verification error
+- `UNSUPPORTED_SUBFILTER`: Unsupported signature subfilter
+
+### TypeScript Support
+
+The library includes complete TypeScript definitions in `types.d.ts` with interfaces for:
+
+- `VerifyPDFResponse`
+- `VerifyPDFError`
+- `SignatureInfo`
+- `CertificateDetails`
+- `CertificateEntity`
+- `ValidityPeriod`
+- `SignatureMeta`

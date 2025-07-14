@@ -26,7 +26,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yudayahya/pdf-signature-reader.git"
+    "url": "https://github.com/keviinmiichael/pdf-signature-reader"
   },
   "dependencies": {
     "base64-js": "^1.5.1",

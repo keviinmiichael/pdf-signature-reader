@@ -11,7 +11,7 @@ const {
   isCertsExpired,
 } = require('./helpers');
 const { extractCertificatesDetails } = require('./certificateDetails');
-const { setCustomRootCertificates, clearCustomRootCertificates } = require('./helpers/verification');
+const { setCertificateOptions, clearCustomRootCertificates } = require('./helpers/verification');
 
 const verify = (signature, signedData, signatureMeta) => {
   const message = getMessageFromSignature(signature);
@@ -68,11 +68,8 @@ const verify = (signature, signedData, signatureMeta) => {
 };
 
 module.exports = (pdf, options = {}) => {
-  const { customRootCAPath } = options;
-  
-  if (customRootCAPath) {
-    setCustomRootCertificates(customRootCAPath);
-  }
+  // Configurar certificados con el nuevo formato de opciones
+  setCertificateOptions(options);
   
   try {
     const pdfBuffer = preparePDF(pdf);
@@ -96,9 +93,7 @@ module.exports = (pdf, options = {}) => {
   } catch (error) {
     return ({ verified: false, message: error.message, error });
   } finally {
-    // Limpiar certificados personalizados después de la verificación
-    if (customRootCAPath) {
-      clearCustomRootCertificates();
-    }
+    // Limpiar configuración de certificados después de la verificación
+    clearCustomRootCertificates();
   }
 };

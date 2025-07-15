@@ -18,7 +18,8 @@ npm install pdf-signature-reader-sl
 
 - `pdf` (`Buffer | string`): PDF file as buffer or string
 - `options` (`Object`, optional): Configuration options
-  - `customRootCAPath` (`string`, optional): Path to custom root CA certificates file
+  - `caPath` (`string`, optional): Path to custom root CA certificates file
+  - `caValidation` (`'custom' | 'all'`, optional): Certificate validation mode (default: 'all')
 
 **Returns**: `VerifyPDFResponse | VerifyPDFError`
 
@@ -42,6 +43,32 @@ npm install pdf-signature-reader-sl
   message: string,          // Error description
   error: Error             // Original error object
 }
+```
+
+#### Configuration Options
+
+##### `caValidation` modes:
+
+- **`'all'` (default)**: Uses system root certificates and optionally custom certificates if `caPath` is provided
+- **`'custom'`**: Uses only custom certificates provided via `caPath` (ignores system certificates)
+
+##### Examples:
+
+```javascript
+// Using default system certificates
+const result = verifyPDF(pdfBuffer);
+
+// Adding custom certificates to system ones
+const result = verifyPDF(pdfBuffer, {
+  caPath: "./certs/custom-ca.pem",
+  caValidation: "all", // default behavior
+});
+
+// Using only custom certificates
+const result = verifyPDF(pdfBuffer, {
+  caPath: "./certs/custom-ca.pem",
+  caValidation: "custom",
+});
 ```
 
 ### Exported Functions
@@ -232,3 +259,121 @@ The library includes complete TypeScript definitions in `types.d.ts` with interf
 - `CertificateEntity`
 - `ValidityPeriod`
 - `SignatureMeta`
+- `VerifyPDFOptions`
+- `CertificateValidationMode`
+
+## Practical Examples
+
+### Basic PDF Verification
+
+```javascript
+const verifyPDF = require("pdf-signature-reader-sl");
+const fs = require("fs");
+
+// Read PDF file
+const pdfBuffer = fs.readFileSync("signed-document.pdf");
+
+// Basic verification with system certificates
+const result = verifyPDF(pdfBuffer);
+
+if (result.verified) {
+  console.log("✅ PDF signature is valid");
+  console.log(`📋 Found ${result.signatures.length} signatures`);
+} else {
+  console.log("❌ PDF signature verification failed");
+  console.log(`💬 Error: ${result.message || "Unknown error"}`);
+}
+```
+
+### Custom Certificate Authority
+
+```javascript
+// Use custom CA certificates along with system ones
+const result = verifyPDF(pdfBuffer, {
+  caPath: "./certificates/custom-ca.pem",
+  caValidation: "all", // Use both system and custom certificates
+});
+
+// Use ONLY custom CA certificates (ignore system certificates)
+const strictResult = verifyPDF(pdfBuffer, {
+  caPath: "./certificates/custom-ca.pem",
+  caValidation: "custom", // Use only custom certificates
+});
+```
+
+### Extract Certificate Information
+
+```javascript
+// Get detailed certificate information
+const certInfo = verifyPDF.getCertificatesInfoFromPDF(pdfBuffer);
+
+certInfo.forEach((signatureCerts, sigIndex) => {
+  console.log(`Signature ${sigIndex + 1}:`);
+
+  signatureCerts.forEach((cert, certIndex) => {
+    if (cert.clientCertificate) {
+      console.log(`  👤 Signer: ${cert.issuedTo.commonName}`);
+      console.log(`  🏢 Organization: ${cert.issuedTo.organizationName}`);
+      console.log(`  🌍 Country: ${cert.issuedTo.countryName}`);
+      console.log(`  📅 Valid until: ${cert.validityPeriod.notAfter}`);
+    }
+  });
+});
+```
+
+### Error Handling
+
+```javascript
+const result = verifyPDF(pdfBuffer, {
+  caPath: "./certs/custom.pem",
+  caValidation: "custom",
+});
+
+// Type checking helpers
+if (verifyPDF.isVerifyPDFError(result)) {
+  console.error("Verification failed:", result.message);
+  console.error("Original error:", result.error);
+} else if (verifyPDF.isVerifyPDFSuccess(result)) {
+  console.log("Verification successful!");
+
+  // Check individual signature details
+  result.signatures.forEach((sig, index) => {
+    if (!sig.authenticity) {
+      console.warn(`⚠️ Signature ${index + 1}: Certificate chain not trusted`);
+    }
+    if (!sig.integrity) {
+      console.error(`❌ Signature ${index + 1}: Document has been modified`);
+    }
+    if (sig.expired) {
+      console.warn(`⏰ Signature ${index + 1}: Certificate has expired`);
+    }
+  });
+}
+```
+
+## Features
+
+### Digital Signature Verification
+- Complete verification of PDF digital signatures
+- Support for multiple signature formats and standards
+- Certificate chain validation with custom CA support
+- Document integrity checking
+- Expiration date validation
+
+### Enhanced Spanish Certificate Support
+- **FNMT-RCM**: Spanish government certificates
+- **DNIe**: Electronic national ID certificates  
+- **Corporate certificates**: Business and organizational certificates
+- Automatic certificate type detection and classification
+
+### Flexible Certificate Validation
+- **System certificates**: Uses operating system's trusted root certificates
+- **Custom certificates**: Support for custom CA certificate files
+- **Hybrid mode**: Combines system and custom certificates for maximum compatibility
+- **Strict mode**: Uses only custom certificates for controlled environments
+
+### Comprehensive Error Handling
+- Detailed error reporting with specific error types
+- Type-safe error handling with TypeScript support
+- Graceful handling of malformed or unsupported PDF files
+- Clear distinction between verification failures and system errors

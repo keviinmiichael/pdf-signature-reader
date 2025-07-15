@@ -1,6 +1,6 @@
 {
   "name": "pdf-signature-reader-sl",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Verify digital signatures in PDF documents with support for Spanish certificates (FNMT, DNIe, corporate)",
   "main": "index.js",
   "types": "types.d.ts",

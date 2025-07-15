@@ -91,10 +91,25 @@ export interface VerifyPDFError {
 export type VerifyPDFResult = VerifyPDFResponse | VerifyPDFError;
 
 /**
+ * Modo de validación de certificados
+ */
+export type CertificateValidationMode = 'all' | 'custom';
+
+/**
+ * Opciones de configuración para verifyPDF
+ */
+export interface VerifyPDFOptions {
+  /** Ruta al archivo de certificados CA personalizados */
+  caPath?: string;
+  /** Modo de validación de certificados (default: 'all') */
+  caValidation?: CertificateValidationMode;
+}
+
+/**
  * Función principal de verificación de PDF
  */
 export interface VerifyPDFFunction {
-  (pdf: Buffer | string): VerifyPDFResult;
+  (pdf: Buffer | string, options?: VerifyPDFOptions): VerifyPDFResult;
 }
 
 /**

@@ -4,8 +4,11 @@
 # Directorio de certificados de prueba
 CERTIFICADOS_TEST/
 
+# Directorio de certificados para desarrollo
+certs_backup/
+
 # Archivos de test y desarrollo
-test-normal-behavior.js
+test-*.js
 RESUMEN_FINAL.md
 
 # Resultados de verificación

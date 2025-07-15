@@ -2,43 +2,23 @@ const tls = require('tls');
 const forge = require('node-forge');
 const fs = require('fs');
 const path = require('path');
-const rootCAs = require('./rootCAs');
 
-// Variable global para almacenar certificados personalizados
 let customRootCertificates = null;
+let caValidationMode = 'all';
 
-const getLocalCertificates = () => {
+const loadCustomRootCertificates = (caPath) => {
   try {
-    const certsPath = path.join(__dirname, '..', 'certs');
-    const fnmtPath = path.join(certsPath, 'fnmt.pem');
-    
-    if (fs.existsSync(fnmtPath)) {
-      const localCerts = fs.readFileSync(fnmtPath, 'utf8');
-      // Split multiple certificates if they exist in the same file
-      const certRegex = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
-      const matches = localCerts.match(certRegex);
-      return matches || [];
-    }
-    return [];
-  } catch (error) {
-    console.warn('Warning: Could not load local certificates:', error.message);
-    return [];
-  }
-};
-
-const loadCustomRootCertificates = (customRootCAPath) => {
-  try {
-    if (!customRootCAPath || !fs.existsSync(customRootCAPath)) {
-      throw new Error(`Custom root CA file not found: ${customRootCAPath}`);
+    if (!caPath || !fs.existsSync(caPath)) {
+      throw new Error(`Custom root CA file not found: ${caPath}`);
     }
     
-    const customCerts = fs.readFileSync(customRootCAPath, 'utf8');
+    const customCerts = fs.readFileSync(caPath, 'utf8');
 
     const certRegex = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
     const matches = customCerts.match(certRegex);
     
     if (!matches || matches.length === 0) {
-      throw new Error(`No valid certificates found in: ${customRootCAPath}`);
+      throw new Error(`No valid certificates found in: ${caPath}`);
     }
     
     return matches;
@@ -48,9 +28,13 @@ const loadCustomRootCertificates = (customRootCAPath) => {
   }
 };
 
-const setCustomRootCertificates = (customRootCAPath) => {
-  if (customRootCAPath) {
-    customRootCertificates = loadCustomRootCertificates(customRootCAPath);
+const setCertificateOptions = (options = {}) => {
+  const { caPath, caValidation = 'all' } = options;
+  
+  caValidationMode = caValidation;
+  
+  if (caPath) {
+    customRootCertificates = loadCustomRootCertificates(caPath);
   } else {
     customRootCertificates = null;
   }
@@ -58,16 +42,21 @@ const setCustomRootCertificates = (customRootCAPath) => {
 
 const clearCustomRootCertificates = () => {
   customRootCertificates = null;
+  caValidationMode = 'all';
 };
 
 const getRootCAs = () => {
-  if (customRootCertificates && customRootCertificates.length > 0) {
-    return customRootCertificates;
+  if (caValidationMode === 'custom') {
+    return customRootCertificates || [];
   }
   
-  const systemCerts = tls.rootCertificates || rootCAs;
-  const localCerts = getLocalCertificates();
-  return [...systemCerts, ...localCerts];
+  const systemCerts = tls.rootCertificates;
+  
+  if (customRootCertificates && customRootCertificates.length > 0) {
+    return [...systemCerts, ...customRootCertificates];
+  }
+  
+  return systemCerts;
 };
 
 const verifyRootCert = (chainRootInForgeFormat) => !!getRootCAs()
@@ -96,7 +85,7 @@ module.exports = {
   verifyCaBundle,
   verifyRootCert,
   isCertsExpired,
-  setCustomRootCertificates,
+  setCertificateOptions,
   clearCustomRootCertificates,
   getRootCAs, // Exportar para testing
 };

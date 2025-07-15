@@ -1,7 +1,7 @@
 {
   "name": "pdf-signature-reader-sl",
-  "version": "1.5.3",
-  "description": "Verify digital signatures in PDF documents with support for Spanish certificates (FNMT, DNIe, corporate)",
+  "version": "1.6.0",
+  "description": "Verify digital signatures in PDF documents with content validation and enhanced support for Spanish certificates (FNMT, DNIe, corporate)",
   "main": "index.js",
   "types": "types.d.ts",
   "scripts": {
@@ -12,6 +12,8 @@
     "pdf",
     "signature",
     "digital signature",
+    "content validation",
+    "pdf content",
     "node",
     "nodejs",
     "verify",
@@ -20,7 +22,11 @@
     "spanish certificates",
     "etsi",
     "cades",
-    "pkcs7"
+    "pkcs7",
+    "pdf text extraction",
+    "document validation",
+    "async",
+    "typescript"
   ],
   "author": "",
   "license": "MIT",
@@ -31,6 +37,7 @@
   "dependencies": {
     "base64-js": "^1.5.1",
     "ieee754": "^1.2.1",
-    "node-forge": "^1.3.1"
+    "node-forge": "^1.3.1",
+    "pdf2json": "^3.1.6"
   }
 }

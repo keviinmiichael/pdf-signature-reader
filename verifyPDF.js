@@ -9,6 +9,7 @@ const {
   authenticateSignature,
   sortCertificateChain,
   isCertsExpired,
+  validatePdfContent,
 } = require('./helpers');
 const { extractCertificatesDetails } = require('./certificateDetails');
 const { setCertificateOptions, clearCustomRootCertificates } = require('./helpers/verification');
@@ -67,13 +68,31 @@ const verify = (signature, signedData, signatureMeta) => {
   });
 };
 
-module.exports = (pdf, options = {}) => {
+module.exports = async (pdf, options = {}) => {
   // Configurar certificados con el nuevo formato de opciones
   setCertificateOptions(options);
   
   try {
     const pdfBuffer = preparePDF(pdf);
     checkForSubFilter(pdfBuffer);
+    
+    // Validar contenido si se proporciona configuración de validación
+    let contentValidationResult = null;
+    if (options.contentValidations && options.contentValidations.length > 0) {
+      contentValidationResult = await validatePdfContent(pdfBuffer, options.contentValidations);
+      
+      // Si la validación de contenido falla, retornar inmediatamente
+      if (!contentValidationResult.valid) {
+        return {
+          verified: false,
+          authenticity: false,
+          integrity: false,
+          expired: false,
+          signatures: [],
+          contentValidation: contentValidationResult
+        };
+      }
+    }
     
     const { signatureStr, signedData, signatureMeta } = extractSignature(pdfBuffer);
 
@@ -88,6 +107,11 @@ module.exports = (pdf, options = {}) => {
       expired: signatures.some(o => o.expired === true),
       signatures
     };
+
+    // Agregar resultado de validación de contenido si existe
+    if (contentValidationResult) {
+      result.contentValidation = contentValidationResult;
+    }
 
     return result;
   } catch (error) {

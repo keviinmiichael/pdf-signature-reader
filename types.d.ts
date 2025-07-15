@@ -74,6 +74,8 @@ export interface VerifyPDFResponse {
   integrity: boolean;
   expired: boolean;
   signatures: SignatureInfo[];
+  /** Resultado de validación de contenido (opcional) */
+  contentValidation?: ContentValidationResult;
 }
 
 /**
@@ -96,6 +98,42 @@ export type VerifyPDFResult = VerifyPDFResponse | VerifyPDFError;
 export type CertificateValidationMode = 'all' | 'custom';
 
 /**
+ * Tipos de validación de contenido
+ */
+export type ContentValidationType = 'text';
+
+/**
+ * Modos de coincidencia para validación de contenido
+ */
+export type ContentValidationMatch = 'contains' | 'exact' | 'regex';
+
+/**
+ * Configuración de validación de contenido
+ */
+export interface ContentValidation {
+  /** Tipo de validación */
+  type: ContentValidationType;
+  /** Texto a buscar o validar */
+  text: string;
+  /** Modo de coincidencia */
+  match: ContentValidationMatch;
+  /** Descripción opcional para identificar la validación */
+  description?: string;
+}
+
+/**
+ * Resultado de validación de contenido
+ */
+export interface ContentValidationResult {
+  /** Si la validación fue exitosa */
+  valid: boolean;
+  /** Mensaje de error si la validación falló */
+  error?: string;
+  /** Validaciones que fallaron */
+  failedValidations?: ContentValidation[];
+}
+
+/**
  * Opciones de configuración para verifyPDF
  */
 export interface VerifyPDFOptions {
@@ -103,13 +141,15 @@ export interface VerifyPDFOptions {
   caPath?: string;
   /** Modo de validación de certificados (default: 'all') */
   caValidation?: CertificateValidationMode;
+  /** Validaciones de contenido del PDF */
+  contentValidations?: ContentValidation[];
 }
 
 /**
  * Función principal de verificación de PDF
  */
 export interface VerifyPDFFunction {
-  (pdf: Buffer | string, options?: VerifyPDFOptions): VerifyPDFResult;
+  (pdf: Buffer | string, options?: VerifyPDFOptions): Promise<VerifyPDFResult>;
 }
 
 /**

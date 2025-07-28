@@ -3,13 +3,12 @@ const VerifyPDFError = require('./VerifyPDFError');
 const {
   extractSignature,
   getMessageFromSignature,
-  getClientCertificate,
   checkForSubFilter,
   preparePDF,
   authenticateSignature,
-  sortCertificateChain,
   isCertsExpired,
   validatePdfContent,
+  sortCertificateBySignature,
 } = require('./helpers');
 const { extractCertificatesDetails } = require('./certificateDetails');
 const { setCertificateOptions, clearCustomRootCertificates } = require('./helpers/verification');
@@ -32,10 +31,13 @@ const verify = (signature, signedData, signatureMeta) => {
     true,
     attrs,
   );
-  const clientCertificate = getClientCertificate(certificates);
+
+  const sortedCerts = sortCertificateBySignature(certificates, sig, attrs, digestAlgorithm);
+  const clientCertificate = sortedCerts[0];
+
   const digest = forge.md[hashAlgorithm]
     .create()
-    .update(forge.asn1.toDer(set).data)
+    .update(forge.asn1.toDer(set).getBytes())
     .digest()
     .getBytes();
   const validAuthenticatedAttributes = clientCertificate.publicKey.verify(digest, sig);
@@ -55,7 +57,6 @@ const verify = (signature, signedData, signatureMeta) => {
     .digest()
     .getBytes();
   const integrity = dataDigest === attrDigest;
-  const sortedCerts = sortCertificateChain(certificates);
   const parsedCerts = extractCertificatesDetails(sortedCerts);
   const authenticity = authenticateSignature(sortedCerts);
   const expired = isCertsExpired(sortedCerts);
@@ -71,16 +72,16 @@ const verify = (signature, signedData, signatureMeta) => {
 module.exports = async (pdf, options = {}) => {
   // Configurar certificados con el nuevo formato de opciones
   setCertificateOptions(options);
-  
+
   try {
     const pdfBuffer = preparePDF(pdf);
     checkForSubFilter(pdfBuffer);
-    
+
     // Validar contenido si se proporciona configuración de validación
     let contentValidationResult = null;
     if (options.contentValidations && options.contentValidations.length > 0) {
       contentValidationResult = await validatePdfContent(pdfBuffer, options.contentValidations);
-      
+
       // Si la validación de contenido falla, retornar inmediatamente
       if (!contentValidationResult.valid) {
         return {
@@ -93,7 +94,7 @@ module.exports = async (pdf, options = {}) => {
         };
       }
     }
-    
+
     const { signatureStr, signedData, signatureMeta } = extractSignature(pdfBuffer);
 
     const signatures = signedData.map((signed, index) => {
@@ -121,3 +122,4 @@ module.exports = async (pdf, options = {}) => {
     clearCustomRootCertificates();
   }
 };
+

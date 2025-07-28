@@ -1,3 +1,5 @@
+const forge = require('node-forge');
+
 const issued = (cert) => (anotherCert) => cert !== anotherCert && anotherCert.issued(cert);
 
 const getIssuer = (certsArray) => (cert) => certsArray.find(issued(cert));
@@ -30,7 +32,44 @@ const sortCertificateChain = (certs) => {
 
 const getClientCertificate = (certs) => sortCertificateChain(certs)[0];
 
+const sortCertificateBySignature = (certificates, signature, authenticatedAttributes, digestAlgorithm) => {
+  const certs = [];
+  const hashAlgorithmOid = forge.asn1.derToOid(digestAlgorithm);
+  const hashAlgorithm = forge.pki.oids[hashAlgorithmOid].toLowerCase();
+
+  const set = forge.asn1.create(
+    forge.asn1.Class.UNIVERSAL,
+    forge.asn1.Type.SET,
+    true,
+    authenticatedAttributes
+  );
+
+  const digest = forge.md[hashAlgorithm]
+    .create()
+    .update(forge.asn1.toDer(set).data)
+    .digest()
+    .getBytes();
+
+  for (const cert of certificates) {
+    try {
+      const isValid = cert.publicKey.verify(digest, signature);
+      if (isValid) {
+        certs.unshift(cert);
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  const sorted = sortCertificateChain(certificates);
+  certs.push(...sorted.filter(cert => !certs.includes(cert)));
+
+  return certs;
+};
+
+
 module.exports = {
   sortCertificateChain,
   getClientCertificate,
+  sortCertificateBySignature,
 };

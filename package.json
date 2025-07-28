@@ -5,8 +5,8 @@
   "main": "index.js",
   "types": "types.d.ts",
   "scripts": {
-    "test": "node test-normal-behavior.js",
-    "test:verbose": "node test-normal-behavior.js"
+    "test": "node test-certs.js",
+    "test:verbose": "node test-certs.js"
   },
   "keywords": [
     "pdf",

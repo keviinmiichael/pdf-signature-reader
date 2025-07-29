@@ -1,75 +1,122 @@
 const forge = require('node-forge');
 
-const issued = (cert) => (anotherCert) => cert !== anotherCert && anotherCert.issued(cert);
-
-const getIssuer = (certsArray) => (cert) => certsArray.find(issued(cert));
-
-const inverse = (f) => (x) => !f(x);
-
-const hasNoIssuer = (certsArray) => inverse(getIssuer(certsArray));
-
-const getChainRootCertificateIdx = (certsArray) => certsArray.findIndex(hasNoIssuer(certsArray));
-
-const isIssuedBy = (cert) => (anotherCert) => cert !== anotherCert && cert.issued(anotherCert);
-
-const getChildIdx = (certsArray) => (parent) => certsArray.findIndex(isIssuedBy(parent));
-
-const sortCertificateChain = (certs) => {
-  const certsArray = Array.from(certs);
-  const rootCertIndex = getChainRootCertificateIdx(certsArray);
-  const certificateChain = certsArray.splice(rootCertIndex, 1);
-  while (certsArray.length) {
-    const lastCert = certificateChain[0];
-    const childCertIdx = getChildIdx(certsArray)(lastCert);
-    if (childCertIdx === -1) certsArray.splice(childCertIdx, 1);
-    else {
-      const [childCert] = certsArray.splice(childCertIdx, 1);
-      certificateChain.unshift(childCert);
-    }
-  }
-  return certificateChain;
+const getCertificateName = (cert) => {
+  const cn = cert.subject.getField('CN');
+  if (cn) return cn.value;
+  const ou = cert.subject.getField('OU');
+  if (ou) return ou.value;
+  const o = cert.subject.getField('O');
+  if (o) return o.value;
+  return 'Unknown';
 };
 
-const getClientCertificate = (certs) => sortCertificateChain(certs)[0];
+const getIssuerName = (cert) => {
+  const cn = cert.issuer.getField('CN');
+  if (cn) return cn.value;
+  const ou = cert.issuer.getField('OU');
+  if (ou) return ou.value;
+  const o = cert.issuer.getField('O');
+  if (o) return o.value;
+  return 'Unknown';
+};
 
-const sortCertificateBySignature = (certificates, signature, authenticatedAttributes, digestAlgorithm) => {
-  const certs = [];
-  const hashAlgorithmOid = forge.asn1.derToOid(digestAlgorithm);
-  const hashAlgorithm = forge.pki.oids[hashAlgorithmOid].toLowerCase();
+const findSigningCertificate = (leafCerts, signature, digest) => {
+  if (leafCerts.length === 1) return leafCerts[0];
 
-  const set = forge.asn1.create(
-    forge.asn1.Class.UNIVERSAL,
-    forge.asn1.Type.SET,
-    true,
-    authenticatedAttributes
-  );
-
-  const digest = forge.md[hashAlgorithm]
-    .create()
-    .update(forge.asn1.toDer(set).data)
-    .digest()
-    .getBytes();
-
-  for (const cert of certificates) {
+  for (const cert of leafCerts) {
     try {
-      const isValid = cert.publicKey.verify(digest, signature);
-      if (isValid) {
-        certs.unshift(cert);
+      if (cert.publicKey.verify(digest, signature)) {
+        return cert;
       }
     } catch (error) {
       continue;
     }
   }
-
-  const sorted = sortCertificateChain(certificates);
-  certs.push(...sorted.filter(cert => !certs.includes(cert)));
-
-  return certs;
+  return null;
 };
 
+const buildRobustCertificateChain = (certificates, signature, digest) => {
+  const certsBySubjectHash = new Map();
+  const certsByIssuerHash = new Map();
+  const uniqueCerts = [];
+  const seenKeys = new Set();
+
+  for (const cert of certificates) {
+    const key = `${cert.subject.hash}-${cert.issuer.hash}`;
+    if (seenKeys.has(key)) continue;
+
+    seenKeys.add(key);
+    uniqueCerts.push(cert);
+
+    if (!certsBySubjectHash.has(cert.subject.hash)) {
+      certsBySubjectHash.set(cert.subject.hash, []);
+    }
+    certsBySubjectHash.get(cert.subject.hash).push(cert);
+
+    if (!certsByIssuerHash.has(cert.issuer.hash)) {
+      certsByIssuerHash.set(cert.issuer.hash, []);
+    }
+    certsByIssuerHash.get(cert.issuer.hash).push(cert);
+  }
+
+  const leafCerts = uniqueCerts.filter(cert =>
+    !certsByIssuerHash.has(cert.subject.hash)
+  );
+
+  if (!leafCerts.length) {
+    return {
+      chain: [],
+      isComplete: false,
+      error: 'No leaf certificate found'
+    };
+  }
+
+  let actualSigningCert = leafCerts[0];
+  if (leafCerts.length > 1 && signature && digest) {
+    const signingCert = findSigningCertificate(leafCerts, signature, digest);
+    if (signingCert) {
+      actualSigningCert = signingCert;
+    }
+  }
+
+  const chain = [];
+  let currentCert = actualSigningCert;
+  const visitedHashes = new Set();
+
+  while (currentCert) {
+    if (visitedHashes.has(currentCert.subject.hash)) break;
+    visitedHashes.add(currentCert.subject.hash);
+
+    const isRoot = currentCert.subject.hash === currentCert.issuer.hash;
+
+    chain.push({
+      cert: currentCert.serialNumber,
+      certificate: currentCert,
+      level: chain.length,
+      isRoot: isRoot,
+      subjectCN: getCertificateName(currentCert),
+      issuerCN: getIssuerName(currentCert),
+      isSigningCert: currentCert === actualSigningCert
+    });
+
+    if (isRoot) break;
+
+    const issuers = certsBySubjectHash.get(currentCert.issuer.hash);
+    currentCert = issuers?.[0] || null;
+
+    if (!currentCert) break;
+  }
+
+  const isComplete = chain.length > 0 && chain[chain.length - 1].isRoot;
+
+  return {
+    chain,
+    isComplete,
+    signingCertificate: actualSigningCert.serialNumber,
+    rootCertificate: isComplete ? chain[chain.length - 1].cert : null,
+  };
+};
 
 module.exports = {
-  sortCertificateChain,
-  getClientCertificate,
-  sortCertificateBySignature,
+  buildRobustCertificateChain,
 };

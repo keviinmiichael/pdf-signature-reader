@@ -22,24 +22,37 @@ const extractSingleCertificateDetails = (cert) => {
   };
 };
 
-const extractCertificatesDetails = (certs) => certs
-  .map(extractSingleCertificateDetails)
-  .map((cert, i) => {
-    if (i) return cert;
-    return {
-      clientCertificate: true,
-      ...cert,
-    };
-  });
+const extractCertificatesDetails = (certs) => {
+  const result = new Array(certs.length);
+
+  for (let i = 0; i < certs.length; i++) {
+    const cert = extractSingleCertificateDetails(certs[i]);
+
+    if (i === 0) {
+      result[i] = {
+        clientCertificate: true,
+        ...cert,
+      };
+    } else {
+      result[i] = cert;
+    }
+  }
+
+  return result;
+};
 
 const getCertificatesInfoFromPDF = (pdf) => {
   const pdfBuffer = preparePDF(pdf);
   const { signatureStr } = extractSignature(pdfBuffer);
 
-  return signatureStr.map(signature => {
-    const { certificates } = getMessageFromSignature(signature);
-    return extractCertificatesDetails(certificates);
-  });
+  const result = new Array(signatureStr.length);
+
+  for (let i = 0; i < signatureStr.length; i++) {
+    const { certificates } = getMessageFromSignature(signatureStr[i]);
+    result[i] = extractCertificatesDetails(certificates);
+  }
+
+  return result;
 };
 
 module.exports = {

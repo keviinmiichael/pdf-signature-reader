@@ -8,10 +8,30 @@ const {
   authenticateSignature,
   isCertsExpired,
   validatePdfContent,
-  sortCertificateBySignature,
+  buildRobustCertificateChain,
 } = require('./helpers');
 const { extractCertificatesDetails } = require('./certificateDetails');
 const { setCertificateOptions, clearCustomRootCertificates } = require('./helpers/verification');
+
+const createDigest = (authenticatedAttributes, digestAlgorithm) => {
+  const hashAlgorithmOid = forge.asn1.derToOid(digestAlgorithm);
+  const hashAlgorithm = forge.pki.oids[hashAlgorithmOid].toLowerCase();
+  const set = forge.asn1.create(
+    forge.asn1.Class.UNIVERSAL,
+    forge.asn1.Type.SET,
+    true,
+    authenticatedAttributes,
+  );
+
+  return {
+    digest: forge.md[hashAlgorithm]
+      .create()
+      .update(forge.asn1.toDer(set).getBytes())
+      .digest()
+      .getBytes(),
+    hashAlgorithm
+  };
+};
 
 const verify = (signature, signedData, signatureMeta) => {
   const message = getMessageFromSignature(signature);
@@ -23,23 +43,12 @@ const verify = (signature, signedData, signatureMeta) => {
       digestAlgorithm,
     },
   } = message;
-  const hashAlgorithmOid = forge.asn1.derToOid(digestAlgorithm);
-  const hashAlgorithm = forge.pki.oids[hashAlgorithmOid].toLowerCase();
-  const set = forge.asn1.create(
-    forge.asn1.Class.UNIVERSAL,
-    forge.asn1.Type.SET,
-    true,
-    attrs,
-  );
 
-  const sortedCerts = sortCertificateBySignature(certificates, sig, attrs, digestAlgorithm);
+  const { digest, hashAlgorithm } = createDigest(attrs, digestAlgorithm);
+  const chainResult = buildRobustCertificateChain(certificates, sig, digest);
+  const sortedCerts = chainResult.chain.map(cert => cert.certificate);
   const clientCertificate = sortedCerts[0];
 
-  const digest = forge.md[hashAlgorithm]
-    .create()
-    .update(forge.asn1.toDer(set).getBytes())
-    .digest()
-    .getBytes();
   const validAuthenticatedAttributes = clientCertificate.publicKey.verify(digest, sig);
   if (!validAuthenticatedAttributes) {
     throw new VerifyPDFError(
@@ -47,6 +56,7 @@ const verify = (signature, signedData, signatureMeta) => {
       VerifyPDFError.VERIFY_SIGNATURE,
     );
   }
+
   const messageDigestAttr = forge.pki.oids.messageDigest;
   const fullAttrDigest = attrs
     .find((attr) => forge.asn1.derToOid(attr.value[0].value) === messageDigestAttr);
@@ -57,32 +67,34 @@ const verify = (signature, signedData, signatureMeta) => {
     .digest()
     .getBytes();
   const integrity = dataDigest === attrDigest;
+
   const parsedCerts = extractCertificatesDetails(sortedCerts);
   const authenticity = authenticateSignature(sortedCerts);
   const expired = isCertsExpired(sortedCerts);
-  return ({
+
+  return {
     verified: integrity && authenticity && !expired,
     authenticity,
     integrity,
     expired,
-    meta: { certs: parsedCerts, signatureMeta },
-  });
+    meta: {
+      certs: parsedCerts,
+      signatureMeta,
+    },
+  };
 };
 
 module.exports = async (pdf, options = {}) => {
-  // Configurar certificados con el nuevo formato de opciones
   setCertificateOptions(options);
 
   try {
     const pdfBuffer = preparePDF(pdf);
     checkForSubFilter(pdfBuffer);
 
-    // Validar contenido si se proporciona configuración de validación
     let contentValidationResult = null;
-    if (options.contentValidations && options.contentValidations.length > 0) {
+    if (options.contentValidations?.length > 0) {
       contentValidationResult = await validatePdfContent(pdfBuffer, options.contentValidations);
 
-      // Si la validación de contenido falla, retornar inmediatamente
       if (!contentValidationResult.valid) {
         return {
           verified: false,
@@ -97,29 +109,26 @@ module.exports = async (pdf, options = {}) => {
 
     const { signatureStr, signedData, signatureMeta } = extractSignature(pdfBuffer);
 
-    const signatures = signedData.map((signed, index) => {
-      return (verify(signatureStr[index], signed, signatureMeta[index]));
-    })
+    const signatures = signedData.map((signed, index) =>
+      verify(signatureStr[index], signed, signatureMeta[index])
+    );
 
     const result = {
-      verified: signatures.every(o => o.verified === true),
-      authenticity: signatures.every(o => o.authenticity === true),
-      integrity: signatures.every(o => o.integrity === true),
-      expired: signatures.some(o => o.expired === true),
+      verified: signatures.every(s => s.verified),
+      authenticity: signatures.every(s => s.authenticity),
+      integrity: signatures.every(s => s.integrity),
+      expired: signatures.some(s => s.expired),
       signatures
     };
 
-    // Agregar resultado de validación de contenido si existe
     if (contentValidationResult) {
       result.contentValidation = contentValidationResult;
     }
 
     return result;
   } catch (error) {
-    return ({ verified: false, message: error.message, error });
+    return { verified: false, message: error.message, error };
   } finally {
-    // Limpiar configuración de certificados después de la verificación
     clearCustomRootCertificates();
   }
 };
-

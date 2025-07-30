@@ -43,6 +43,7 @@ export default function extractSignature(pdf: Buffer | string): ExtractSignature
 
     const { byteRanges } = getByteRange(pdfBuffer);
 
+
     const signatureStr: string[] = [];
     const signedData: Buffer[] = [];
     byteRanges.forEach((byteRange) => {
@@ -51,8 +52,14 @@ export default function extractSignature(pdf: Buffer | string): ExtractSignature
             pdfBuffer.slice(byteRange[2], byteRange[2] + byteRange[3]),
         ]));
 
+        // Extrae el bloque DER completo de la firma PKCS#7/CMS
         const signatureHex = pdfBuffer.slice(byteRange[0] + byteRange[1] + 1, byteRange[2]).toString('latin1');
-        signatureStr.push(Buffer.from(signatureHex, 'hex').toString('latin1'));
+        let signatureBuffer = Buffer.from(signatureHex, 'hex');
+        // Elimina bytes de padding (0x00) al final
+        while (signatureBuffer.length > 0 && signatureBuffer[signatureBuffer.length - 1] === 0x00) {
+            signatureBuffer = signatureBuffer.slice(0, -1);
+        }
+        signatureStr.push(signatureBuffer.toString('binary'));
     });
 
     const signatureMeta = signedData.map((sd) => getSignatureMeta(sd));
